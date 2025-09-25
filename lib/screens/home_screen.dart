@@ -3,8 +3,8 @@
 import 'package:flutter/material.dart';
 import 'package:api_petvida/models/agendamento.dart';
 import 'package:api_petvida/services/api_service.dart';
-import 'package:api_petvida/screens/agendamento_screen.dart';
 import 'package:api_petvida/screens/login_screen.dart';
+import 'package:api_petvida/screens/one_click_agendamento_screen.dart'; // Importação da nova tela
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -33,19 +33,38 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
+  // Função para recarregar a lista de agendamentos
+  void _recarregarAgendamentos() {
+    setState(() {
+      _agendamentosFuture = _apiService.getAgendamentos();
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Meus Agendamentos'),
         actions: [
+          // Novo botão para agendamento rápido
           IconButton(
-            icon: const Icon(Icons.refresh),
+            icon: const Icon(Icons.access_time),
             onPressed: () {
-              setState(() {
-                _agendamentosFuture = _apiService.getAgendamentos();
+              Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (context) => const OneClickAgendamentoScreen(),
+                ),
+              ).then((value) {
+                // Recarrega a lista quando voltar da tela de agendamento rápido
+                if (value == true) {
+                  _recarregarAgendamentos();
+                }
               });
             },
+          ),
+          IconButton(
+            icon: const Icon(Icons.refresh),
+            onPressed: _recarregarAgendamentos,
           ),
           IconButton(icon: const Icon(Icons.logout), onPressed: _logout),
         ],
@@ -96,17 +115,14 @@ class _HomeScreenState extends State<HomeScreen> {
         onPressed: () {
           Navigator.push(
             context,
-            MaterialPageRoute(builder: (context) => const AgendamentoScreen()),
+            MaterialPageRoute(builder: (context) => const OneClickAgendamentoScreen()),
           ).then((value) {
-            // Recarrega a lista quando voltar da tela de agendamento
             if (value == true) {
-              setState(() {
-                _agendamentosFuture = _apiService.getAgendamentos();
-              });
+              _recarregarAgendamentos();
             }
           });
         },
-        tooltip: 'Novo Agendamento',
+        tooltip: 'Novo Agendamento Rapido',
         child: const Icon(Icons.add),
       ),
     );

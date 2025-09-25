@@ -1,5 +1,5 @@
 // lib/screens/agendamento_screen.dart
-
+import 'package:dio/dio.dart'; 
 import 'package:flutter/material.dart';
 import 'package:api_petvida/models/animal.dart';
 import 'package:api_petvida/models/servicos.dart';
@@ -65,36 +65,55 @@ class _AgendamentoScreenState extends State<AgendamentoScreen> {
   }
 
   // Função para lidar com o envio do agendamento.
-  void _submitAgendamento() async {
-    if (_formKey.currentState!.validate()) {
-      if (_dataSelecionada == null || _horaSelecionada == null) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Por favor, selecione uma data e uma hora.')),
-        );
-        return;
-      }
+void _submitAgendamento() async {
+  if (_formKey.currentState!.validate()) {
+    if (_dataSelecionada == null || _horaSelecionada == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Por favor, selecione uma data e uma hora.')),
+      );
+      return;
+    }
 
-      final agendamentoData = {
-        'id_animal': _animalSelecionado,
-        'id_servicos': _servicoSelecionado,
-        'data_agendamento': _dataSelecionada!.toIso8601String().split('T')[0],
-        'hora_agendamento': '${_horaSelecionada!.hour.toString().padLeft(2, '0')}:${_horaSelecionada!.minute.toString().padLeft(2, '0')}',
-        'observacoes': _observacoesController.text,
-      };
+    final agendamentoData = {
+      'id_animal': _animalSelecionado,
+      'id_servicos': _servicoSelecionado,
+      'data_agendamento': _dataSelecionada!.toIso8601String().split('T')[0],
+      'hora_agendamento': '${_horaSelecionada!.hour.toString().padLeft(2, '0')}:${_horaSelecionada!.minute.toString().padLeft(2, '0')}',
+      'observacoes': _observacoesController.text,
+    };
 
-      try {
-        await _apiService.createAgendamento(agendamentoData);
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Agendamento criado com sucesso!')),
-        );
-        Navigator.pop(context, true);
-      } catch (e) {
-        // Imprime o erro completo no console para depuração
-        print('Erro ao criar agendamento: $e'); 
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Erro ao criar agendamento: $e')),
-        );
+    try {
+      await _apiService.createAgendamento(agendamentoData);
+      
+      // --- MUDANÇA CRÍTICA AQUI ---
+      // Esta parte do código só será executada se a API retornar 200/201.
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Agendamento criado com sucesso!')),
+      );
+      Navigator.pop(context, true);
+      
+    } catch (e) {
+      // O bloco catch já lida com todos os erros (incluindo o 400).
+      String errorMessage = 'Erro ao criar agendamento.';
+      
+      // ... (sua lógica de tratamento de erro DioException, que já está correta) ...
+      if (e is DioException && e.response?.statusCode == 400) {
+        if (e.response?.data != null && e.response!.data is Map) {
+          final errorData = e.response!.data;
+          if (errorData.containsKey('non_field_errors') && errorData['non_field_errors'] is List) {
+            errorMessage = errorData['non_field_errors'][0];
+          } else {
+            errorMessage = errorData.values.first.toString();
+          }
+        }
+      } else {
+        print('Erro inesperado: $e');
+        errorMessage = 'Erro inesperado. Tente novamente mais tarde.';
       }
+      
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(errorMessage)),
+      );      }
     }
   }
 

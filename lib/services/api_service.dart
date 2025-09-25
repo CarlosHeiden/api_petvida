@@ -1,3 +1,5 @@
+// lib/services/api_service.dart
+
 import 'dart:convert';
 import 'package:dio/dio.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -113,9 +115,11 @@ class ApiService {
     }
   }
 
-  Future<bool> createAgendamento(Map<String, dynamic> data) async {
+  Future<void> createAgendamento(Map<String, dynamic> data) async {
     final token = await getAuthToken();
-    if (token == null) return false;
+    if (token == null) {
+      throw Exception('Token de autenticação não encontrado.');
+    }
 
     try {
       await _dio.post(
@@ -123,10 +127,9 @@ class ApiService {
         data: data,
         options: Options(headers: {'Authorization': 'Token $token'}),
       );
-      return true;
     } on DioException catch (e) {
       _logger.e('Erro ao criar agendamento: ${e.response?.statusCode}\nDetalhes: ${e.response?.data}');
-      return false;
+      rethrow; 
     }
   }
 
@@ -138,5 +141,64 @@ class ApiService {
   Future<void> logout() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove('authToken');
+  }
+
+  // Novo método para obter horários disponíveis
+  Future<List<String>> getHorariosDisponiveis({
+    required String data,
+    required int servicoId,
+  }) async {
+    final token = await getAuthToken();
+    if (token == null) {
+      throw Exception('Token de autenticação não encontrado.');
+    }
+
+    try {
+      final response = await _dio.get(
+        'horarios-disponiveis/',
+        queryParameters: {
+          'data': data,
+          'servico_id': servicoId,
+        },
+        options: Options(headers: {'Authorization': 'Token $token'}),
+      );
+      
+      return List<String>.from(response.data);
+    } on DioException catch (e) {
+      _logger.e('Erro ao obter horários: ${e.response?.statusCode}\nDetalhes: ${e.response?.data}');
+      rethrow;
+    }
+  }
+
+  // Método de agendamento "com um clique"
+  // Esta função foi ajustada para enviar os dados para o endpoint correto.
+  Future<void> agendarComUmClique({
+    required int idAnimal,
+    required int idServicos,
+    required String data,
+    required String hora,
+  }) async {
+    final token = await getAuthToken();
+    if (token == null) {
+      throw Exception('Token de autenticação não encontrado.');
+    }
+
+    try {
+      final body = {
+        'id_animal': idAnimal,
+        'id_servico': idServicos,
+        'data': data,
+        'hora': hora,
+      };
+
+      await _dio.post(
+        'agendar_servico/', // A rota do back-end que está funcionando
+        data: body,
+        options: Options(headers: {'Authorization': 'Token $token'}),
+      );
+    } on DioException catch (e) {
+      _logger.e('Erro ao agendar: ${e.response?.statusCode}\nDetalhes: ${e.response?.data}');
+      rethrow;
+    }
   }
 }
