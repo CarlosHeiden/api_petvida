@@ -1,15 +1,15 @@
 // lib/models/agendamento.dart
 
-
 class Agendamento {
   final int? id;
   final int idAnimal;
   final String? nomeAnimal;
   final int idServicos;
-  final String? nomeServico; // Opcional, para facilitar a exibição
+  final String? nomeServico;
   final DateTime dataAgendamento;
   final String horaAgendamento;
   final String? observacoes;
+  final String? status; // <--- 1. NOVO CAMPO ADICIONADO
 
   Agendamento({
     this.id,
@@ -20,6 +20,7 @@ class Agendamento {
     required this.dataAgendamento,
     required this.horaAgendamento,
     this.observacoes,
+    this.status, // <--- 2. NOVO CAMPO NO CONSTRUTOR
   });
 
   factory Agendamento.fromJson(Map<String, dynamic> json) {
@@ -32,6 +33,7 @@ class Agendamento {
       dataAgendamento: DateTime.parse(json['data_agendamento']),
       horaAgendamento: json['hora_agendamento'],
       observacoes: json['observacoes'],
+      status: json['status'], // <--- 3. LENDO O CAMPO DO JSON DO DJANGO
     );
   }
 
@@ -42,6 +44,7 @@ class Agendamento {
       'data_agendamento': dataAgendamento.toIso8601String().substring(0, 10),
       'hora_agendamento': horaAgendamento,
       'observacoes': observacoes,
+      // O campo 'status' não precisa ir no toJson pois é um dado de resposta/leitura
     };
   }
 }

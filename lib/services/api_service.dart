@@ -1,5 +1,3 @@
-// lib/services/api_service.dart
-
 import 'dart:convert';
 import 'package:dio/dio.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -8,6 +6,7 @@ import 'package:api_petvida/models/animal.dart';
 import 'package:api_petvida/models/servicos.dart';
 import 'package:api_petvida/utils/constants.dart';
 import 'package:logger/logger.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
 
 class ApiService {
   final Dio _dio = Dio(
@@ -29,6 +28,9 @@ class ApiService {
     ),
   );
 
+  // ------------------------------------------------------------
+  // 🔐 LOGIN
+  // ------------------------------------------------------------
   Future<Map<String, dynamic>?> login(String username, String password) async {
     try {
       final response = await _dio.post(
@@ -57,11 +59,15 @@ class ApiService {
       }
       return null;
     } on DioException catch (e) {
-      _logger.e('Tipo de erro: ${e.type}\nErro original: ${e.error}\nCódigo: ${e.response?.statusCode}\nDetalhes: ${e.response?.data}');
+      _logger.e(
+          'Erro no login: ${e.response?.statusCode}\n${e.response?.data}\n${e.message}');
       return null;
     }
   }
 
+  // ------------------------------------------------------------
+  // 🐾 ANIMAIS
+  // ------------------------------------------------------------
   Future<List<Animal>> getMyAnimals() async {
     final prefs = await SharedPreferences.getInstance();
     final animalsJson = prefs.getString('userAnimals');
@@ -72,6 +78,9 @@ class ApiService {
     return [];
   }
 
+  // ------------------------------------------------------------
+  // 📅 AGENDAMENTOS
+  // ------------------------------------------------------------
   Future<List<Agendamento>> getAgendamentos() async {
     final token = await getAuthToken();
     if (token == null) return [];
@@ -79,9 +88,8 @@ class ApiService {
     try {
       final prefs = await SharedPreferences.getInstance();
       final userJson = prefs.getString('currentUser');
-      if (userJson == null) {
-        return [];
-      }
+      if (userJson == null) return [];
+
       final userMap = jsonDecode(userJson);
       final userId = userMap['user_id'];
 
@@ -98,6 +106,9 @@ class ApiService {
     }
   }
 
+  // ------------------------------------------------------------
+  // 🧾 SERVIÇOS
+  // ------------------------------------------------------------
   Future<List<Servicos>> getServicos() async {
     final token = await getAuthToken();
     if (token == null) return [];
@@ -115,11 +126,12 @@ class ApiService {
     }
   }
 
+  // ------------------------------------------------------------
+  // 🗓️ CRIAR AGENDAMENTO
+  // ------------------------------------------------------------
   Future<void> createAgendamento(Map<String, dynamic> data) async {
     final token = await getAuthToken();
-    if (token == null) {
-      throw Exception('Token de autenticação não encontrado.');
-    }
+    if (token == null) throw Exception('Token de autenticação não encontrado.');
 
     try {
       await _dio.post(
@@ -128,11 +140,15 @@ class ApiService {
         options: Options(headers: {'Authorization': 'Token $token'}),
       );
     } on DioException catch (e) {
-      _logger.e('Erro ao criar agendamento: ${e.response?.statusCode}\nDetalhes: ${e.response?.data}');
-      rethrow; 
+      _logger.e(
+          'Erro ao criar agendamento: ${e.response?.statusCode}\n${e.response?.data}');
+      rethrow;
     }
   }
 
+  // ------------------------------------------------------------
+  // ⚙️ UTILITÁRIOS
+  // ------------------------------------------------------------
   Future<String?> getAuthToken() async {
     final prefs = await SharedPreferences.getInstance();
     return prefs.getString('authToken');
@@ -143,35 +159,33 @@ class ApiService {
     await prefs.remove('authToken');
   }
 
-  // Novo método para obter horários disponíveis
+  // ------------------------------------------------------------
+  // 🕒 HORÁRIOS DISPONÍVEIS
+  // ------------------------------------------------------------
   Future<List<String>> getHorariosDisponiveis({
     required String data,
     required int servicoId,
   }) async {
     final token = await getAuthToken();
-    if (token == null) {
-      throw Exception('Token de autenticação não encontrado.');
-    }
+    if (token == null) throw Exception('Token de autenticação não encontrado.');
 
     try {
       final response = await _dio.get(
         'horarios-disponiveis/',
-        queryParameters: {
-          'data': data,
-          'servico_id': servicoId,
-        },
+        queryParameters: {'data': data, 'servico_id': servicoId},
         options: Options(headers: {'Authorization': 'Token $token'}),
       );
-      
       return List<String>.from(response.data);
     } on DioException catch (e) {
-      _logger.e('Erro ao obter horários: ${e.response?.statusCode}\nDetalhes: ${e.response?.data}');
+      _logger.e(
+          'Erro ao obter horários: ${e.response?.statusCode}\n${e.response?.data}');
       rethrow;
     }
   }
 
-  // Método de agendamento "com um clique"
-  // Esta função foi ajustada para enviar os dados para o endpoint correto.
+  // ------------------------------------------------------------
+  // 📅 AGENDAR COM UM CLIQUE
+  // ------------------------------------------------------------
   Future<void> agendarComUmClique({
     required int idAnimal,
     required int idServicos,
@@ -179,9 +193,7 @@ class ApiService {
     required String hora,
   }) async {
     final token = await getAuthToken();
-    if (token == null) {
-      throw Exception('Token de autenticação não encontrado.');
-    }
+    if (token == null) throw Exception('Token de autenticação não encontrado.');
 
     try {
       final body = {
@@ -192,13 +204,66 @@ class ApiService {
       };
 
       await _dio.post(
-        'agendar_servico/', // A rota do back-end que está funcionando
+        'agendar_servico/',
         data: body,
         options: Options(headers: {'Authorization': 'Token $token'}),
       );
     } on DioException catch (e) {
-      _logger.e('Erro ao agendar: ${e.response?.statusCode}\nDetalhes: ${e.response?.data}');
+      _logger.e(
+          'Erro ao agendar: ${e.response?.statusCode}\n${e.response?.data}');
       rethrow;
+    }
+  }
+
+  // ------------------------------------------------------------
+  // 🔔 FIREBASE CLOUD MESSAGING (FCM)
+  // ------------------------------------------------------------
+
+  /// 1️⃣ Solicita permissão e obtém o token FCM do dispositivo
+  Future<String?> getFCMTokenAndRequestPermission() async {
+    final messaging = FirebaseMessaging.instance;
+
+    // Solicitar permissão para notificações (Android 13+ / iOS)
+    NotificationSettings settings = await messaging.requestPermission(
+      alert: true,
+      badge: true,
+      sound: true,
+    );
+
+    if (settings.authorizationStatus == AuthorizationStatus.authorized) {
+      final token = await messaging.getToken();
+      _logger.d("✅ Token FCM obtido: $token");
+      return token;
+    }
+
+    _logger.w("⚠️ Permissão de notificação negada.");
+    return null;
+  }
+
+  /// 2️⃣ Envia o token FCM para o Django
+  Future<void> saveFCMToken(String token) async {
+    final authToken = await getAuthToken();
+    if (authToken == null) {
+      _logger.e('❌ Token de autenticação não encontrado.');
+      return;
+    }
+
+    try {
+      await _dio.post(
+        SAVE_FCM_TOKEN_ENDPOINT, // 🚀 agora vem do constants.dart
+        data: {'fcm_token': token},
+        options: Options(
+          headers: {
+            'Authorization': 'Token $authToken',
+            'Content-Type': 'application/json; charset=UTF-8',
+          },
+        ),
+      );
+      _logger.i('✅ Token FCM salvo no Django com sucesso!');
+    } on DioException catch (e) {
+      _logger.e(
+          '❌ Falha ao salvar token FCM: ${e.response?.statusCode}\n${e.response?.data}');
+      throw Exception('Falha ao salvar token FCM no servidor.');
     }
   }
 }

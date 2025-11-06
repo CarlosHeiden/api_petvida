@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:api_petvida/models/agendamento.dart';
 import 'package:api_petvida/services/api_service.dart';
 import 'package:api_petvida/screens/login_screen.dart';
-import 'package:api_petvida/screens/one_click_agendamento_screen.dart'; // Importação da nova tela
+import 'package:api_petvida/screens/one_click_agendamento_screen.dart'; 
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -16,6 +16,10 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   final ApiService _apiService = ApiService();
   late Future<List<Agendamento>> _agendamentosFuture;
+
+  // Cor padrão do PetVida (Verde Água)
+  // Cor usada no seu template Django: #03bb85. Vamos usá-la aqui.
+  static const Color _petVidaGreen = Color(0xFF03bb85);
 
   @override
   void initState() {
@@ -46,7 +50,6 @@ class _HomeScreenState extends State<HomeScreen> {
       appBar: AppBar(
         title: const Text('Meus Agendamentos'),
         actions: [
-          // Novo botão para agendamento rápido
           IconButton(
             icon: const Icon(Icons.access_time),
             onPressed: () {
@@ -55,7 +58,6 @@ class _HomeScreenState extends State<HomeScreen> {
                   builder: (context) => const OneClickAgendamentoScreen(),
                 ),
               ).then((value) {
-                // Recarrega a lista quando voltar da tela de agendamento rápido
                 if (value == true) {
                   _recarregarAgendamentos();
                 }
@@ -86,45 +88,59 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
             );
           } else {
-            return ListView.builder(
-              itemCount: snapshot.data!.length,
-              itemBuilder: (context, index) {
-                final agendamento = snapshot.data![index];
-                return Card(
-                  margin: const EdgeInsets.symmetric(
-                    horizontal: 16,
-                    vertical: 8,
-                  ),
-                  child: ListTile(
-                    leading: const Icon(Icons.pets, color: Colors.blueAccent),
-                    title: Text(
-                      agendamento.nomeServico ?? 'Serviço Desconhecido',
-                    ),
-                    subtitle: Text(
-                      '${agendamento.nomeAnimal} - '
-                      '${agendamento.dataAgendamento.day}/${agendamento.dataAgendamento.month} às ${agendamento.horaAgendamento}',
-                    ),
-                  ),
-                );
+            return RefreshIndicator( // Adiciona funcionalidade Pull-to-refresh
+              onRefresh: () async {
+                _recarregarAgendamentos();
+                await _agendamentosFuture; // Aguarda a recarga
               },
+              child: ListView.builder(
+                itemCount: snapshot.data!.length,
+                itemBuilder: (context, index) {
+                  final agendamento = snapshot.data![index];
+                  
+                  // LÓGICA DE COR CONDICIONAL
+                  final bool isFinalizado = agendamento.status?.toLowerCase() == 'finalizado';
+                  
+                  final Color cardColor = isFinalizado 
+                      ? Colors.grey.shade300 // Cinza Cimento (Tom leve)
+                      : _petVidaGreen; // Verde Água Padrão
+
+                  final Color textColor = isFinalizado 
+                      ? Colors.black87 // Texto escuro em fundo claro
+                      : Colors.white; // Texto claro em fundo escuro
+
+                  return Card(
+                    // APLICA A COR CONDICIONAL
+                    color: cardColor, 
+                    margin: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 8,
+                    ),
+                    child: ListTile(
+                      leading: Icon(Icons.pets, color: textColor),
+                      title: Text(
+                        agendamento.nomeServico ?? 'Serviço Desconhecido',
+                        style: TextStyle(fontWeight: FontWeight.bold, color: textColor),
+                      ),
+                      subtitle: Text(
+                        '${agendamento.nomeAnimal} - '
+                        '${agendamento.dataAgendamento.day}/${agendamento.dataAgendamento.month} às ${agendamento.horaAgendamento}',
+                        // ignore: deprecated_member_use
+                        style: TextStyle(color: textColor.withOpacity(0.8)),
+                      ),
+                      // Opcional: Adicionar um ícone de "Concluído"
+                      trailing: isFinalizado
+                          ? Icon(Icons.check_circle, color: textColor)
+                          : null,
+                    ),
+                  );
+                },
+              ),
             );
           }
         },
       ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(builder: (context) => const OneClickAgendamentoScreen()),
-          ).then((value) {
-            if (value == true) {
-              _recarregarAgendamentos();
-            }
-          });
-        },
-        tooltip: 'Novo Agendamento Rapido',
-        child: const Icon(Icons.add),
-      ),
+      // ... FloatingActionButton e outros widgets
     );
   }
 }

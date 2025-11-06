@@ -1,7 +1,6 @@
-// lib/screens/login_screen.dart
 import 'package:flutter/material.dart';
 import 'package:api_petvida/services/api_service.dart';
-import 'package:api_petvida/screens/home_screen.dart'; // Tela de destino após o login
+import 'package:api_petvida/screens/home_screen.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -21,26 +20,64 @@ class _LoginScreenState extends State<LoginScreen> {
       _isLoading = true;
     });
 
-    final username = _usernameController.text;
-    final password = _passwordController.text;
+    final username = _usernameController.text.trim();
+    final password = _passwordController.text.trim();
 
-    final token = await _apiService.login(username, password);
+    // 🔐 Login no Django REST Framework
+    final loginResponse = await _apiService.login(username, password);
 
     setState(() {
       _isLoading = false;
     });
 
-    if (token != null) {
-      // Login bem-sucedido, navega para a tela inicial
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(builder: (context) => const HomeScreen()),
-      );
+    if (loginResponse != null) {
+      try {
+        // ✅ Login bem-sucedido
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Login realizado com sucesso!'),
+            backgroundColor: Colors.green,
+          ),
+        );
+
+        // 🔔 Obtém o token FCM e envia ao Django
+        final fcmToken = await _apiService.getFCMTokenAndRequestPermission();
+        if (fcmToken != null) {
+          await _apiService.saveFCMToken(fcmToken);
+          debugPrint('✅ Token FCM registrado no servidor Django!');
+        } else {
+          debugPrint('⚠️ Não foi possível obter o token FCM.');
+        }
+
+        // 🏠 Redireciona para a tela inicial
+        if (mounted) {
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(builder: (context) => const HomeScreen()),
+          );
+        }
+      } catch (e) {
+        debugPrint("Erro ao registrar FCM: $e");
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Login feito, mas falha ao registrar notificações: $e'),
+            backgroundColor: Colors.orange,
+          ),
+        );
+
+        // Mesmo com falha no FCM, segue para Home
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (context) => const HomeScreen()),
+        );
+      }
     } else {
-      // Login falhou, exibe uma mensagem de erro
+      // ❌ Falha no login
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Falha no login. Verifique suas credenciais.'),
+          backgroundColor: Colors.red,
         ),
       );
     }
@@ -79,9 +116,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 : ElevatedButton(
                     onPressed: _login,
                     style: ElevatedButton.styleFrom(
-                      minimumSize: const Size.fromHeight(
-                        50,
-                      ), // Botão de largura total
+                      minimumSize: const Size.fromHeight(50),
                     ),
                     child: const Text('Entrar'),
                   ),

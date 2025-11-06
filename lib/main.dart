@@ -2,11 +2,21 @@
 
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-
+import 'package:firebase_core/firebase_core.dart';
 import 'package:api_petvida/screens/login_screen.dart';
 import 'package:api_petvida/screens/home_screen.dart';
+import 'package:api_petvida/services/fcm_service.dart'; // 👈 adicionamos aqui
 
-void main() {
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+
+  try {
+    await Firebase.initializeApp();
+    print("✅ Firebase inicializado com sucesso!");
+  } catch (e) {
+    print("❌ Erro na inicialização do Firebase: $e");
+  }
+
   runApp(const PetVidaApp());
 }
 
@@ -22,7 +32,6 @@ class PetVidaApp extends StatelessWidget {
         primarySwatch: Colors.blue,
         visualDensity: VisualDensity.adaptivePlatformDensity,
       ),
-      // O ponto de entrada da nossa navegação condicional.
       home: const AuthWrapper(),
     );
   }
@@ -36,27 +45,32 @@ class AuthWrapper extends StatefulWidget {
 }
 
 class _AuthWrapperState extends State<AuthWrapper> {
-  // A função assíncrona que verifica se há um token de login salvo.
   Future<bool> _checkLoginStatus() async {
     final prefs = await SharedPreferences.getInstance();
     final token = prefs.getString('authToken');
-    return token != null;
+
+    if (token != null) {
+      print("🔐 Usuário autenticado. Token: $token");
+
+      // 🔔 Inicializa o serviço FCM com o token do usuário logado
+      await FCMService.initializeFCM(authToken: token);
+      return true;
+    } else {
+      print("🚪 Nenhum token de autenticação encontrado.");
+      return false;
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    // Usa o FutureBuilder para lidar com a lógica assíncrona.
     return FutureBuilder<bool>(
       future: _checkLoginStatus(),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
-          // Exibe um spinner de carregamento enquanto verifica o token.
           return const Scaffold(
             body: Center(child: CircularProgressIndicator()),
           );
         } else {
-          // Após a verificação, decide qual tela exibir.
-          // O snapshot.data conterá o valor retornado pela sua função (_checkLoginStatus).
           if (snapshot.data == true) {
             return const HomeScreen();
           } else {

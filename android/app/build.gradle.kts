@@ -1,8 +1,13 @@
+// android/app/build.gradle.kts (ESTE ARQUIVO ESTÁ DENTRO DA PASTA 'app')
+
 plugins {
     id("com.android.application")
     id("kotlin-android")
     // The Flutter Gradle Plugin must be applied after the Android and Kotlin Gradle plugins.
     id("dev.flutter.flutter-gradle-plugin")
+    
+    // LINHA CRUCIAL FALTANDO: APLICA o plugin do Google Services ao seu app.
+    id("com.google.gms.google-services")
 }
 
 android {
@@ -42,3 +47,7 @@ android {
 flutter {
     source = "../.."
 }
+
+// ** ATENÇÃO: Se você usa outras bibliotecas do Firebase, o bloco `dependencies` 
+// geralmente fica aqui, mas a importação do BoM não é mais necessária no `build.gradle.kts` **
+// Se precisar de dependências, elas vão no arquivo `pubspec.yaml` do Flutter.
