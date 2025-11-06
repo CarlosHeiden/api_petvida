@@ -11,7 +11,7 @@ class FCMService {
   static String djangoAuthToken = ""; // ⚠️ este será preenchido dinamicamente após login
 
   // Inicializa o FCM e salva o token no Django
-  static Future<void> initializeFCM() async {
+  static Future<void> initializeFCM({required String authToken}) async {
     try {
       FirebaseMessaging messaging = FirebaseMessaging.instance;
 
